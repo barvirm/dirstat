@@ -1,0 +1,104 @@
+#!/bin/bash
+
+help()
+{
+    echo "HELP"
+    echo "  dirstat [-i FILE_ERE] [DIR]"
+    echo "  [] optional "
+    echo "  -i FILE_ERE = ignore all file and directory which matches with regular expresion FILE_ERE"
+    echo "  DIR = directory dir will be examined"
+    exit 2
+}
+
+if [ $# != 0 ] ; then 
+    TEMP=`getopt -o i: -n 'projekt.sh' --  "$@"`
+    if [ $? != 0 ]; then
+        help
+    else
+        eval set -- "$TEMP"
+        while true ; do
+            case "$1" in
+                -i)
+                    case "$2" in
+                    *)  FILE_ERE=$2 ; shift 2 ;;
+                    esac ;;
+                 --) shift ; break ;;
+                 *) echo "Error" ; exit 1 ;;
+            esac
+        done
+        DIR=$@
+    fi
+else
+# bez argumentu
+    DIR=`pwd`
+    echo $DIR
+    FILE_ERE=""
+fi
+
+
+
+cd "$DIR" > /dev/null 2>&1 || {
+				echo "Error wrong directory"
+				 exit 2 
+			 }
+
+
+NUM_DIR=`find "$DIR" -type d | wc -l`
+MAX_DEP=`find "$DIR" -type d -printf '%d\n' | sort -rn | head -n 1`
+MAX_DEP=$((MAX_DEP+1))
+NUM_FILES=`find "$DIR" -type f -not -name "$FILE_ERE" | wc -l`
+AVR_NUM_FILES=$((NUM_FILES/NUM_DIR))
+LARG_FILE=`find "$DIR" -type f -not -name "$FILE_ERE" -exec ls -al {} \; | sort -nr -k5 | head -n 1 | awk '{print $5}'`
+ALL_FILE_SIZE=`find "$DIR" -type f -not -name "$FILE_ERE" -exec ls -al {} \; | sort -nr -k5 | awk '{sum+=$5} END {print sum}'`
+AVR_FILE_SIZE=$((ALL_FILE_SIZE/NUM_FILES))
+##
+FILE_EXT=`find "$DIR" -not -name "$FILE_ERE" -type f | tr "/" "\ " | awk '{print $NF}' | grep '\.' | cut -c2- | cut -d '.' -f2- | grep -v [^0-9,A-Z,a-z,.] | sort -u`
+
+FILE_EXT_PRINTABLE=`echo $FILE_EXT | tr " " ","`
+
+echo "Root directory: $DIR"
+echo "Directories: $NUM_DIR"
+echo "Max depth: $MAX_DEP"
+echo "Average no. of files: $AVR_NUM_FILES"
+echo "All files: $NUM_FILES"
+echo "  Largest file: $LARG_FILE"
+echo "  Average file size: $AVR_FILE_SIZE"
+
+if [ `echo $(($NUM_FILES%2))` != 0 ]; then
+    TMP=$(($NUM_FILES/2+1))
+    MEDIAN_FILE=`find "$DIR" -type f -not -name "$FILE_ERE" -exec ls -Al {} \; | sort -n -k5  | awk -v x=$TMP 'NR == x {print $5 }'`
+    echo "  File size median: $MEDIAN_FILE"
+else
+    TMP=$(($NUM_FILES/2))
+    MEDIAN_FILE1=`find "$DIR" -type f -not -name "$FILE_ERE" -exec ls -Al {} \; | sort -n -k5  | awk -v x=$TMP 'NR == x {print $5 }'`
+    TMP=$(($TMP+1))
+    MEDIAN_FILE2=`find "$DIR" -type f -not -name "$FILE_ERE" -exec ls -Al {} \; | sort -n -k5  | awk -v x=$TMP 'NR == x {print $5 }'`
+    MEDIAN_FILE=$(( ($MEDIAN_FILE1+$MEDIAN_FILE2)/2 ))
+    echo "  File size median: $MEDIAN_FILE"
+fi
+echo "File extensions: $FILE_EXT_PRINTABLE"
+for i in $FILE_EXT; do 
+    NUM_FILES=`find "$DIR" -type f -name "*.$i" | wc -l`
+    LARGEST_FILE=`find "$DIR" -type f -name "*.$i" -exec ls -al {} \; | sort -nr -k5 | head -n 1 | awk '{print $5}'`
+    AVERAGE_FILE=$((`find "$DIR" -type f -name "*.$i" -exec ls -al {} \; | sort -nr -k5 | awk '{sum+=$5} END {print sum}'`/`find "$DIR" -type f -name "*.$i" | wc -l`))
+    
+    echo "Files .$i: $NUM_FILES"
+    echo "  Largest file .$i: $LARGEST_FILE" 
+    echo "  Average file size .$i: $AVERAGE_FILE"
+    if [ `echo $(($NUM_FILES%2))` != 0 ]; then
+        TMP=$(($NUM_FILES/2))
+        if [ $TMP = 0 ];then
+            TMP=1
+        fi
+        MEDIAN_FILE=`find "$DIR" -type f -name "*.$i" -exec ls -Al {} \; | sort -n -k5  | awk -v x=$TMP 'NR == x {print $5 }'`
+        echo "  File size median .$i: $MEDIAN_FILE"
+    else
+        TMP=$(($NUM_FILES/2))
+        MEDIAN_FILE1=`find "$DIR" -type f -name "*.$i" -exec ls -Al {} \; | sort -n -k5  | awk -v x=$TMP 'NR == x {print $5 }'`
+        TMP=$(($TMP+1))
+        MEDIAN_FILE2=`find "$DIR" -type f -name "*.$i" -exec ls -Al {} \; | sort -n -k5  | awk -v x=$TMP 'NR == x {print $5 }'`
+        MEDIAN_FILE=$(( ($MEDIAN_FILE1+$MEDIAN_FILE2)/2 ))
+        echo "  File size median .$i: $MEDIAN_FILE"
+    fi
+done
+exit 0
